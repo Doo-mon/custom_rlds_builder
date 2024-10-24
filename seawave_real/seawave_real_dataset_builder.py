@@ -1,20 +1,20 @@
 import os
-import glob
+import random
+import cv2
+import yaml
 import torch
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import matplotlib
-import random
-import yaml
-import cv2
 
 from PIL import Image
 from torchvision.transforms import ToTensor
-from typing import Iterator, Tuple, Any
+from typing import Iterator, Tuple, Any, Optional
 
 
 '''
+将 ARIO 格式的数据转变为 RLDS 格式
+
 为 seawave_real 数据集添加深度图 并重新生成 rlds 数据集
 '''
 
@@ -22,35 +22,26 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
     
     VERSION = tfds.core.Version('1.0.0')
     # RELEASE_NOTES = {'1.0.0': 'Initial release.',}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.ori_dataset_name = "collection-real-SeaWave"
-        self.ori_data_dir = f"/data1/zhanzhihao/openvla_data/{self.ori_dataset_name}/series-1/"
+        self.ARIO_series_name = "series-1"
+        self.ori_data_dir = f"/data1/zhanzhihao/openvla_data/{self.ori_dataset_name}/{self.ARIO_series_name}/"
         
         self.episode_count = 0 # 考虑到有些数据集并没有 episode_id
 
+        self.has_val = True
+
         self.task_list = [name for name in os.listdir(self.ori_data_dir) if os.path.isdir(os.path.join(self.ori_data_dir, name))]
         self.task_list.sort()
-        self.task_dict = {}
-        for t_name in self.task_list:
-            task_path = self.ori_data_dir + t_name + "/"
-            yaml_file = task_path + "description.yaml"
-            with open(yaml_file, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)  # 加载 YAML 文件
-                des = data["instruction_EN"]
-            epi_list = [(task_path + name + "/") for name in os.listdir(task_path) if os.path.isdir(os.path.join(task_path, name))]
-            self.task_dict[des] = epi_list
 
-        self.has_val = True
-        self.trian_split_ratio = 0.9
-        keys = list(self.task_dict.keys())
-        random.shuffle(keys)
-        split_index = int(len(keys) * self.trian_split_ratio)
-
-        self.train_dict = {key: self.task_dict[key] for key in keys[:split_index]}
-        self.val_dict = {key: self.task_dict[key] for key in keys[split_index:]}
-
+        if self.has_val:
+            self.train_dict, self.val_dict = self._split_train_val(is_split = True, is_random = True, trian_split_ratio = 0.9)
+        else:
+            self.train_dict = self._split_train_val(is_split = False)
+         
         self.device_0 = "cuda:0"
         self.device_1 = "cuda:1"
 
@@ -58,7 +49,32 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
         self.depth_model = torch.hub.load("/data1/zhanzhihao/ZoeDepth/", "ZoeD_N", source="local", pretrained=True)
         self.depth_model.eval()
         self.depth_model = self.depth_model.to(self.device_1)
+
+
+    def _split_train_val(self, is_split = False, is_random = True, trian_split_ratio = 0.9)-> Tuple[dict, Optional[dict]]:
         
+        task_dict = {}
+        for t_name in self.task_list:
+            task_path = self.ori_data_dir + t_name + "/"
+            yaml_file = task_path + "description.yaml"
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)  # 加载 YAML 文件
+                des = data["instruction_EN"]
+            epi_list = [(task_path + name + "/") for name in os.listdir(task_path) if os.path.isdir(os.path.join(task_path, name))]
+            task_dict[des] = epi_list
+
+        if not is_split:
+            return task_dict
+        
+        keys = list(task_dict.keys())
+        if is_random:
+            random.shuffle(keys)
+        split_index = int(len(keys) * trian_split_ratio)
+
+        train_dict = {key: task_dict[key] for key in keys[:split_index]}
+        val_dict = {key: task_dict[key] for key in keys[split_index:]}
+        return train_dict, val_dict
+      
         
     def _info(self) -> tfds.core.DatasetInfo:
         return self.dataset_info_from_configs(
@@ -153,14 +169,12 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
             }
 
 
-    def _iter_data(self, data_dict):
-        for k, v_list in data_dict.items():
-            for v in v_list:
-                yield k, v
-
-
     def _generate_examples(self, split_mode="train") -> Iterator[Tuple[str, Any]]:
-        
+        def _iter_data(data_dict):
+            for k, v_list in data_dict.items():
+                for v in v_list:
+                    yield k, v
+                    
         def _extract_frames(video_path):
             frames = []
             cap = cv2.VideoCapture(video_path)
@@ -247,10 +261,10 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
 
        
         # 根据传进去的不同 episode 执行对应的函数获得不同的返回值
-        
         data_dict = self.train_dict if (split_mode=="train") else self.val_dict
 
-        for des, episode in self._iter_data(data_dict):
+        for des, episode in _iter_data(data_dict):
+            # print(des, episode)
             yield _parse_example(des, episode)
 
         # 数据集很大的话考虑使用 beam 进行并行数据处理(this will have initialization overhead)
