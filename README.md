@@ -1,10 +1,61 @@
 # RLDS Dataset Conversion
 
-This repo demonstrates how to convert an existing dataset into RLDS format for X-embodiment experiment integration.
-It provides an example for converting a dummy dataset to RLDS. To convert your own dataset, **fork** this repo and 
-modify the example code for your dataset following the steps below.
+此 repo 展示了将多种格式的数据集 转换为 RLDS 格式，以便集成 X-embodiment 实验。
 
-## Installation
+（此外还可以支持生成不同的数据插入到原数据中，例如为数据集生成深度图）
+目前提供以下示例，可根据需要进一步修改： 
+
+* 自定义数据集
+*  rlds 格式 （Open-X : https://robotics-transformer-x.github.io/ ）
+*  ario 格式 （ARIO : https://imaei.github.io/project_pages/ario/ ）
+
+
+## 安装
+
+rlds_env 环境参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset_builder
+
+示例代码使用的深度图生成模型的使用参考 https://github.com/isl-org/ZoeDepth
+
+可根据自己需要更换模型
+
+
+
+## 使用
+
+切换到具体的目录，执行以下命令即可
+
+```shell
+export CUDA_VISIBLE_DEVICES=1,2
+
+cd /data1/zhanzhihao/custom_rlds_builder/my_robotdata
+
+# --data_dir 为生成的数据集保存路径
+tfds build --data_dir "/data1/zhanzhihao/openvla_data"
+
+# 后台执行命令
+nohup tfds build --data_dir "/data1/zhanzhihao/openvla_data" > ./output.log 2>&1 &
+```
+
+补充几点重要的：
+
+1. 名字要对上，包括比如 seawave_real 文件夹 就对应 seawave_real_dataset_builder.py
+2. 每个数据集类里面设置的meta信息也要和最后generate的一致
+3. _generate_examples() 函数返回的第一个参数一定要不一致（否则将在最后一步save的时候出问题）
+
+
+
+## 其他
+
+**国内服务器难以进行外网下载的问题**
+
+**tf在构建数据集的时候会首先搜索一下云上有没有相应的数据集，如果服务器访问不了外网的话，这一步将会等待非常久，所以需要稍微改动一下 tensorflow_datasets 的源码**:
+1. 修改一：将 tensorflow_datasets/core/dataset_builder.py  里面275行的函数注释掉（可替换成 pass）
+2. 修改二：将 tensorflow_datasets/scripts/cli/build.py  里面的590行 DownloadConfig 类的参数 try_download_gcs 设为 False
+
+
+
+
+<!-- ## Installation
 
 First create a conda environment using the provided environment.yml file (use `environment_ubuntu.yml` or `environment_macos.yml` depending on the operating system you're using):
 ```
@@ -143,4 +194,4 @@ was successful by inspecting the bucket [here](https://console.cloud.google.com/
 
 The last step is to commit all changes to this repo and send Karl the link to the repo.
 
-**Thanks a lot for contributing your data! :)**
+**Thanks a lot for contributing your data! :)** -->
