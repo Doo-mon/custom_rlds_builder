@@ -1,3 +1,4 @@
+import sys
 import os
 import random
 import cv2
@@ -12,6 +13,12 @@ from torchvision.transforms import ToTensor
 from typing import Iterator, Tuple, Any, Optional
 
 
+depth_anything_v2_path = "/data1/zhanzhihao/Depth-Anything-V2"
+if depth_anything_v2_path not in sys.path:
+    sys.path.append(depth_anything_v2_path)
+from depth_anything_v2.dpt import DepthAnythingV2
+
+
 '''
 将 ARIO 格式的数据转变为 RLDS 格式
 
@@ -20,8 +27,8 @@ from typing import Iterator, Tuple, Any, Optional
 
 class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
     
-    VERSION = tfds.core.Version('1.0.0')
-    # RELEASE_NOTES = {'1.0.0': 'Initial release.',}
+    VERSION = tfds.core.Version('1.0.1')
+    RELEASE_NOTES = {'1.0.1': 'Generate depth by depth-anything-v2'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -41,14 +48,30 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
             self.train_dict, self.val_dict = self._split_train_val(is_split = True, is_random = True, trian_split_ratio = 0.9)
         else:
             self.train_dict = self._split_train_val(is_split = False)
-         
+        
+        # ============================== 加载深度模型 depth-anything-v2 ===========================
+        self.depth_model_type = "vitl"
+
         self.device_0 = "cuda:0"
         self.device_1 = "cuda:1"
 
-        # 加载深度模型
-        self.depth_model = torch.hub.load("/data1/zhanzhihao/ZoeDepth/", "ZoeD_N", source="local", pretrained=True)
-        self.depth_model.eval()
-        self.depth_model = self.depth_model.to(self.device_1)
+        model_configs = {
+        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+        }
+
+        self.depth_model = DepthAnythingV2(**model_configs[self.depth_model_type])
+        depth_ckpt = f"/data1/zhanzhihao/openvla_ckpt/Depth-Anything-V2/depth_anything_v2_{self.depth_model_type}.pth"
+        self.depth_model.load_state_dict(torch.load(depth_ckpt, map_location='cpu'))
+        self.depth_model = self.depth_model.to(self.device_0).eval()
+        
+        # ============================== 加载深度模型 ZoeDepth ===========================
+
+        # self.depth_model = torch.hub.load("/data1/zhanzhihao/ZoeDepth/", "ZoeD_N", source="local", pretrained=True)
+        # self.depth_model.eval()
+        # self.depth_model = self.depth_model.to(self.device_1)
 
 
     def _split_train_val(self, is_split = False, is_random = True, trian_split_ratio = 0.9)-> Tuple[dict, Optional[dict]]:
@@ -212,12 +235,19 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
             img = cv2.resize(ori_img, (256, 256))
             return img
 
+        # def _generate_depth_image(ori_img):
+        #     ori_torch = ToTensor()(Image.fromarray(ori_img)).unsqueeze(0).to(self.device_1)
+        #     depth_torch = self.depth_model.infer(ori_torch) # 1 1 256 256
+        #     depth_np = depth_torch.squeeze().detach().cpu().numpy() # 256 256 float32
+        #     depth_tf = tf.convert_to_tensor(depth_np) # 256 256
+        #     return tf.expand_dims(depth_tf, axis=-1) # 256 256 1
+
+        # 为 depth-anything-v2 新写的一个
         def _generate_depth_image(ori_img):
-            ori_torch = ToTensor()(Image.fromarray(ori_img)).unsqueeze(0).to(self.device_1)
-            depth_torch = self.depth_model.infer(ori_torch) # 1 1 256 256
-            depth_np = depth_torch.squeeze().detach().cpu().numpy() # 256 256 float32
-            depth_tf = tf.convert_to_tensor(depth_np) # 256 256
+            depth = self.depth_model.infer_image(ori_img, input_size = 256) # 里面会自动转成tensor 然后输出再自动转为np
+            depth_tf = tf.convert_to_tensor(depth)
             return tf.expand_dims(depth_tf, axis=-1) # 256 256 1
+            
 
         def _parse_example(des, episode):
             video_dir = episode + "cam-1/rgb.mp4"

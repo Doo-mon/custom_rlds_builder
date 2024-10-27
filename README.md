@@ -2,8 +2,9 @@
 
 此 repo 展示了将多种格式的数据集 转换为 RLDS 格式，以便集成 X-embodiment 实验。
 
-（此外还可以支持生成不同的数据插入到原数据中，例如为数据集生成深度图）
-目前提供以下示例，可根据需要进一步修改： 
+（此外还可以支持生成不同的数据插入到原数据中，例如为数据集生成深度图、点云等）
+
+目前提供以下示例，可根据需要对代码进一步修改： 
 
 * 自定义数据集
 *  rlds 格式 （Open-X : https://robotics-transformer-x.github.io/ ）
@@ -14,9 +15,16 @@
 
 rlds_env 环境参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset_builder
 
-示例代码使用的深度图生成模型的使用参考 https://github.com/isl-org/ZoeDepth
 
-可根据自己需要更换模型
+**24-10-27** 最新的代码使用 Depth-Anything-V2 进行深度图生成（参考 https://github.com/DepthAnything/Depth-Anything-V2 ）
+* 目前使用 large 模型（335.3M），giant 模型（1.3B）暂未公开
+* 直接 `clone` 仓库，在代码中填入对应的 **仓库路径** 和 **模型ckpt** 即可使用
+* **优点：更加方便直接，并且无需额外配置环境，可在rlds_env的环境下使用**
+
+旧示例代码使用的深度图生成模型的使用 （参考 https://github.com/isl-org/ZoeDepth ）
+* 该模型由于也调用了外部下载，需要进行一点手动的修改
+
+**可根据自己需要更换深度估计模型**
 
 
 
@@ -26,6 +34,7 @@ rlds_env 环境参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset
 
 ```shell
 export CUDA_VISIBLE_DEVICES=1,2
+conda activate rlds_env
 
 cd /data1/zhanzhihao/custom_rlds_builder/my_robotdata
 
