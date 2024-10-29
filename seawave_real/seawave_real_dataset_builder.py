@@ -27,8 +27,12 @@ from depth_anything_v2.dpt import DepthAnythingV2
 
 class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
     
-    VERSION = tfds.core.Version('1.0.1')
-    RELEASE_NOTES = {'1.0.1': 'Generate depth by depth-anything-v2'}
+    VERSION = tfds.core.Version('1.0.2')
+    # RELEASE_NOTES = {
+    #     '1.0.0': 'Generate depth by ZoeD_N',
+    #     '1.0.1': 'Generate depth by depth-anything-v2',
+    #     '1.0.2': 'Generate with apache_beam',
+    #     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -42,7 +46,7 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
         self.has_val = True
 
         self.task_list = [name for name in os.listdir(self.ori_data_dir) if os.path.isdir(os.path.join(self.ori_data_dir, name))]
-        self.task_list.sort()
+        self.task_list.sort() # [task-0, task-1, ...]
 
         if self.has_val:
             self.train_dict, self.val_dict = self._split_train_val(is_split = True, is_random = True, trian_split_ratio = 0.9)
@@ -75,20 +79,22 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
 
 
     def _split_train_val(self, is_split = False, is_random = True, trian_split_ratio = 0.9)-> Tuple[dict, Optional[dict]]:
-        
         task_dict = {}
+        self.task_instruction_dict = {}
         for t_name in self.task_list:
             task_path = self.ori_data_dir + t_name + "/"
             yaml_file = task_path + "description.yaml"
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)  # 加载 YAML 文件
                 des = data["instruction_EN"]
+            self.task_instruction_dict[t_name] = des
             epi_list = [(task_path + name + "/") for name in os.listdir(task_path) if os.path.isdir(os.path.join(task_path, name))]
             task_dict[des] = epi_list
 
         if not is_split:
             return task_dict
         
+        # 按照任务的比例来划分train和val
         keys = list(task_dict.keys())
         if is_random:
             random.shuffle(keys)
@@ -193,10 +199,6 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
 
 
     def _generate_examples(self, split_mode="train") -> Iterator[Tuple[str, Any]]:
-        def _iter_data(data_dict):
-            for k, v_list in data_dict.items():
-                for v in v_list:
-                    yield k, v
                     
         def _extract_frames(video_path):
             frames = []
@@ -249,16 +251,19 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
             return tf.expand_dims(depth_tf, axis=-1) # 256 256 1
             
 
-        def _parse_example(des, episode):
+        def _parse_example(episode):
+            task_name = episode.split("/")[-3]
+            task_instruction = self.task_instruction_dict[task_name] # 从字典里面获得任务指令
+
             video_dir = episode + "cam-1/rgb.mp4"
             # timestamp_dir = episode + "cam-1/timestamps.npy"
             # result_dir = episode + "result.txt"
             # gripper_dir = episode + "right_master_gripper.txt"
-            # 提取状态列表
-            arm_joint_state_list = _extract_state_list(episode)
-            # 提取视频
-            steps = _extract_frames(video_dir) # np 480 640 3
+
+            arm_joint_state_list = _extract_state_list(episode) # 状态列表
+            steps = _extract_frames(video_dir) # 将视频化为帧列表 np 480 640 3
             steps_len = len(steps)
+
             new_episode = []
             self.episode_count += 1
             for i, img in enumerate(steps):
@@ -273,7 +278,7 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
                     'is_first':np.array(True if i==0 else False),
                     'is_last': np.array(True if i==steps_len else False),
                     'is_terminal': np.array(True if i==steps_len else False),
-                    'language_instruction': np.array(tf.constant(des)),
+                    'language_instruction': np.array(tf.constant(task_instruction)),
                 })
             
             sample = {
@@ -289,18 +294,18 @@ class SeawaveRealDataset(tfds.core.GeneratorBasedBuilder):
 
             return f"episode_{self.episode_count}", sample
 
-       
-        # 根据传进去的不同 episode 执行对应的函数获得不同的返回值
         data_dict = self.train_dict if (split_mode=="train") else self.val_dict
+        data_list = []
+        for v in data_dict.values():
+            data_list.extend(v)
 
-        for des, episode in _iter_data(data_dict):
-            # print(des, episode)
-            yield _parse_example(des, episode)
+        for episode in data_list:
+            yield _parse_example(episode)
 
-        # 数据集很大的话考虑使用 beam 进行并行数据处理(this will have initialization overhead)
+        # # TODO: 暂时还没有测试可行性 数据集很大的话考虑使用 beam 进行并行数据处理 注释掉上面两行
         # beam = tfds.core.lazy_imports.apache_beam
         # return (
-        #         beam.Create(episode_paths)
+        #         beam.Create(data_list)
         #         | beam.Map(_parse_example)
         # )
 
