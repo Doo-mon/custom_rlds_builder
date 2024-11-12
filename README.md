@@ -13,12 +13,9 @@
 
 ## 安装
 
-rlds_env环境
-
-**可以使用提供的文件进行简单安装 `pip install -r requirement.txt`**
+**对于 rlds_env 环境 可以使用提供的文件进行简单安装 `pip install -r requirement.txt`**
 
 也可以参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset_builder
-
 
 **24-10-27** 最新的代码使用 Depth-Anything-V2 进行深度图生成（参考 https://github.com/DepthAnything/Depth-Anything-V2 ）
 * 目前使用 large 模型（335.3M），giant 模型（1.3B）暂未公开
@@ -32,7 +29,7 @@ rlds_env环境
 
 ## 测试
 
-测试环境是否能正常使用 可以使用以下命令
+测试初始环境是否能正常使用 可以使用以下命令
 ```shell
 cd example_data
 python3 create_example_data.py
@@ -81,6 +78,8 @@ tfds build --data_dir "/data1/zhanzhihao/openvla_data" --beam_pipeline_options="
 
 **国内服务器难以进行外网下载的问题**
 
-**tf在构建数据集的时候会首先搜索一下云上有没有相应的数据集，如果服务器访问不了外网的话，这一步将会等待非常久，所以需要稍微改动一下 tensorflow_datasets 的源码**:
-1. 修改一：将 tensorflow_datasets/core/dataset_builder.py  里面275行的函数注释掉（可替换成 pass）
-2. 修改二：将 tensorflow_datasets/scripts/cli/build.py  里面的590行 DownloadConfig 类的参数 try_download_gcs 设为 False
+（注意数据集版本不同，位置也会有不同！！！）
+
+**tf在构建数据集的时候会首先搜索一下云上有没有相应的数据集，如果服务器访问不了外网的话，这一步将会等待非常久，所以需要稍微改动一下 tensorflow_datasets==4.9.2 的源码**:
+1. 修改一：将 `tensorflow_datasets/core/dataset_builder.py`  里面 275行 `self.info.initialize_from_bucket()` 注释掉 或者 替换成 `pass`
+2. 修改二：将 `tensorflow_datasets/scripts/cli/build.py`  里面的 590行 `tfds.download.DownloadConfig` 类的构建传入参数 `try_download_gcs` 设为 `False`
