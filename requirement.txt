@@ -1,0 +1,10 @@
+matplotlib
+opencv-python
+wandb
+tensorflow
+tensorflow_datasets==4.9.2
+tensorflow_hub
+apache_beam
+plotly
+# torch
+# torchvision

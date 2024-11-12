@@ -4,7 +4,7 @@ import glob
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import tensorflow_hub as hub
+# import tensorflow_hub as hub
 
 
 class ExampleDataset(tfds.core.GeneratorBasedBuilder):
@@ -17,7 +17,7 @@ class ExampleDataset(tfds.core.GeneratorBasedBuilder):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
+        # self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
         """Dataset metadata (homepage, citation,...)."""
@@ -73,12 +73,12 @@ class ExampleDataset(tfds.core.GeneratorBasedBuilder):
                     'language_instruction': tfds.features.Text(
                         doc='Language Instruction.'
                     ),
-                    'language_embedding': tfds.features.Tensor(
-                        shape=(512,),
-                        dtype=np.float32,
-                        doc='Kona language embedding. '
-                            'See https://tfhub.dev/google/universal-sentence-encoder-large/5'
-                    ),
+                    # 'language_embedding': tfds.features.Tensor(
+                    #     shape=(512,),
+                    #     dtype=np.float32,
+                    #     doc='Kona language embedding. '
+                    #         'See https://tfhub.dev/google/universal-sentence-encoder-large/5'
+                    # ),
                 }),
                 'episode_metadata': tfds.features.FeaturesDict({
                     'file_path': tfds.features.Text(
@@ -105,7 +105,7 @@ class ExampleDataset(tfds.core.GeneratorBasedBuilder):
             episode = []
             for i, step in enumerate(data):
                 # compute Kona language embedding
-                language_embedding = self._embed([step['language_instruction']])[0].numpy()
+                # language_embedding = self._embed([step['language_instruction']])[0].numpy()
 
                 episode.append({
                     'observation': {
@@ -120,7 +120,7 @@ class ExampleDataset(tfds.core.GeneratorBasedBuilder):
                     'is_last': i == (len(data) - 1),
                     'is_terminal': i == (len(data) - 1),
                     'language_instruction': step['language_instruction'],
-                    'language_embedding': language_embedding,
+                    # 'language_embedding': language_embedding,
                 })
 
             # create output data sample

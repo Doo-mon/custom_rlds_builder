@@ -13,7 +13,11 @@
 
 ## 安装
 
-rlds_env 环境参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset_builder
+rlds_env环境
+
+**可以使用提供的文件进行简单安装 `pip install -r requirement.txt`**
+
+也可以参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset_builder
 
 
 **24-10-27** 最新的代码使用 Depth-Anything-V2 进行深度图生成（参考 https://github.com/DepthAnything/Depth-Anything-V2 ）
@@ -26,6 +30,14 @@ rlds_env 环境参考原 repo 的安装 https://github.com/kpertsch/rlds_dataset
 
 **可根据自己需要更换深度估计模型**
 
+## 测试
+
+测试环境是否能正常使用 可以使用以下命令
+```shell
+cd example_data
+python3 create_example_data.py
+tfds build
+```
 
 
 ## 使用
